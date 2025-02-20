@@ -36,7 +36,9 @@ from update_column_z import update_column_z_sheet
 from update_column_aa import update_column_aa_sheet
 from update_column_ab import update_column_ab_sheet
 from update_column_ac import update_column_ac_sheet
-from update_column_ad import update_column_ad_sheet
+from update_column_ad import update_column_ad_sheet # Import update_column_ad_sheet
+from update_column_ae import update_column_ae_sheet # Import update_column_ae_sheet (new)
+
 
 # Import extraction logic from separate files
 from extract_images_logic import extract_images
@@ -148,6 +150,10 @@ def get_column_indices():
     label_fee_column_index = "AA"
     processing_fee_column_index = "AB"
     profit_loss_column_index = "AC"
+    detail_columns_start_index = "AD"
+    details_raw_column_index = "AE" # <-- Added details_raw_column_index
+
+
     sku_column_index = "A"
     product_id_col_index = "B"
     heading_col_index = "C"
@@ -178,9 +184,10 @@ def get_column_indices():
     processing_fee_column_index = "AB"
     profit_loss_column_index = "AC"
     detail_columns_start_index = "AD"
+    details_raw_column_index = "AE"
 
 
-    return (sku_column_index, product_id_col_index, heading_col_index, brand_col_index, price_col_index, image_1_column_index, image_2_column_index, image_3_column_index, image_4_column_index, image_5_column_index, summary_column_index, key_feature_1_column_index, key_feature_2_column_index, remaining_key_features_column_index, category_1_column_index, category_2_column_index, category_3_column_index, category_4_column_index, category_1_url_column_index, category_2_url_index, category_3_url_index, category_4_url_index, product_category_col_index, referral_fee_percentage_col_index, shipping_col_index, selling_price_column_index, label_fee_column_index, processing_fee_column_index, profit_loss_column_index, detail_columns_start_index)
+    return (sku_column_index, product_id_col_index, heading_col_index, brand_col_index, price_col_index, image_1_column_index, image_2_column_index, image_3_column_index, image_4_column_index, image_5_column_index, summary_column_index, key_feature_1_column_index, key_feature_2_column_index, remaining_key_features_column_index, category_1_column_index, category_2_column_index, category_3_column_index, category_4_column_index, category_1_url_column_index, category_2_url_index, category_3_url_index, category_4_url_index, product_category_col_index, referral_fee_percentage_col_index, shipping_col_index, selling_price_column_index, label_fee_column_index, processing_fee_column_index, profit_loss_column_index, detail_columns_start_index, details_raw_column_index)
 
 
 # --- Part 6: Main Function ---
@@ -223,7 +230,7 @@ def main():
     updates = []
     new_rows = []
 
-    (sku_column_index, product_id_col_index, heading_col_index, brand_col_index, price_col_index, image_1_column_index, image_2_column_index, image_3_column_index, image_4_column_index, image_5_column_index, summary_column_index, key_feature_1_column_index, key_feature_2_column_index, remaining_key_features_column_index, category_1_column_index, category_2_column_index, category_3_column_index, category_4_column_index, category_1_url_column_index, category_2_url_index, category_3_url_index, category_4_url_index, product_category_col_index, referral_fee_percentage_col_index, shipping_col_index, selling_price_column_index, label_fee_column_index, processing_fee_column_index, profit_loss_column_index, detail_columns_start_index) = get_column_indices()
+    (sku_column_index, product_id_col_index, heading_col_index, brand_col_index, price_col_index, image_1_column_index, image_2_column_index, image_3_column_index, image_4_column_index, image_5_column_index, summary_column_index, key_feature_1_column_index, key_feature_2_column_index, remaining_key_features_column_index, category_1_column_index, category_2_column_index, category_3_column_index, category_4_column_index, category_1_url_column_index, category_2_url_index, category_3_url_index, category_4_url_index, product_category_col_index, referral_fee_percentage_col_index, shipping_col_index, selling_price_column_index, label_fee_column_index, processing_fee_column_index, profit_loss_column_index, detail_columns_start_index, details_raw_column_index) = get_column_indices()
 
 
     header_row = worksheet.row_values(1)
@@ -279,8 +286,11 @@ def main():
         headers_to_update['AB1'] = [['Processing Fee']]
     if 'Profit/Loss' not in header_row:
         headers_to_update['AC1'] = [['Profit/Loss']]
-    if 'Details' not in header_row:
+    if 'Details' not in header_row: # Header for Column AD (processed data column)
         headers_to_update['AD1'] = [['Details']]
+    if 'Details - Raw' not in header_row: # Header for Column AE (raw data column)
+        headers_to_update['AE1'] = [['Details - Raw']]
+
 
     update_headers_sheet(worksheet, headers_to_update, batch_update_sheet)
 
@@ -288,7 +298,7 @@ def main():
         logging.info(f"Processing row {index + 2} (Product ID: {row.get('web-scraper-start-url', 'N/A')})...")
 
         # 1. Extract data using imported functions
-        logging.info(f"  Row {index + 2}: Extracting product data...")
+        logging.info(f"  Row {index + 2}: Extracting product data...")
         product_id = extract_product_id(row['web-scraper-start-url'])
         numeric_price = extract_numeric_price(row['market_price'])
         image_urls = extract_images(row['images'])
@@ -298,14 +308,14 @@ def main():
         product_category = get_product_category(category_names, category_urls, row['heading'], summary_text)
         referral_fee_percentage = calculate_referral_fee(product_category, DEFAULT_SELLING_PRICE)
         sku = f"{product_id}-{numeric_price if numeric_price is not None else 0}-PK-WMPL"
-        details_text = row['details']
-        logging.info(f"  Row {index + 2}: Data extraction complete.")
+        details_text = row['details'] # Raw details text from Excel
+        logging.info(f"  Row {index + 2}: Data extraction complete.")
 
         # 2. Log category data
-        logging.info(f"  Row {index + 2}: Extracted Categories - Names: {category_names}, URLs: {category_urls}")
+        logging.info(f"  Row {index + 2}: Extracted Categories - Names: {category_names}, URLs: {category_urls}")
 
         # 3. Construct new_row_data
-        logging.info(f"  Row {index + 2}: Constructing new_row_data list...")
+        logging.info(f"  Row {index + 2}: Constructing new_row_data list...")
         new_row_data = [
             sku,
             product_id,
@@ -331,37 +341,39 @@ def main():
             category_urls[3],
             product_category,
             referral_fee_percentage,
-            "", # Shipping
-            DEFAULT_SELLING_PRICE, # Selling Price
-            DEFAULT_LABEL_FEE, # Label Fee
-            DEFAULT_PROCESSING_FEE, # Processing Fee
-            "=SUM(Y{0}+Z{0})-SUM(E{0}+AA{0}+AB{0})", # Profit/Loss formula
-            details_text # Details
+            "", # Shipping (Column Y) - Empty string initially
+            DEFAULT_SELLING_PRICE, # Selling Price (Column Z) - Default value
+            DEFAULT_LABEL_FEE, # Label Fee (Column AA) - Default value
+            DEFAULT_PROCESSING_FEE, # Processing Fee (Column AB) - Default value
+            "", # Profit/Loss (Column AC) - Empty string initially, formula applied later
+            "", # Column AD - processed in Python now, will be populated below
+            details_text # Raw details for Column AE
         ]
-        logging.info(f"  Row {index + 2}: new_row_data list constructed.")
+        logging.info(f"  Row {index + 2}: new_row_data list constructed.")
 
         # 4. Check if product_id exists
-        logging.info(f"  Row {index + 2}: Checking if product ID '{product_id}' exists in Google Sheet...")
+        logging.info(f"  Row {index + 2}: Checking if product ID '{product_id}' exists in Google Sheet...")
         if product_id and product_id in existing_product_ids:
-            logging.info(f"  Row {index + 2}: Product ID '{product_id}' found in Google Sheet.")
+            logging.info(f"  Row {index + 2}: Product ID '{product_id}' found in Google Sheet.")
             sheet_row = existing_product_ids[product_id]
 
             # 5. Prepare updates for existing product
-            logging.info(f"  Row {index + 2}: Preparing updates for existing product in row {sheet_row}...")
+            logging.info(f"  Row {index + 2}: Preparing updates for existing product in row {sheet_row}...")
             updates.append({'range': f"E{sheet_row}", 'values': [[numeric_price]]})
             updates.append({'range': f"F{sheet_row}", 'values': [[image_urls[0] if len(image_urls) > 0 else ""]]})
             updates.append({'range': f"G{sheet_row}", 'values': [[image_urls[1] if len(image_urls) > 1 else ""]]})
             updates.append({'range': f"H{sheet_row}", 'values': [[image_urls[2] if len(image_urls) > 2 else ""]]})
             updates.append({'range': f"I{sheet_row}", 'values': [[image_urls[3] if len(image_urls) > 3 else ""]]})
             updates.append({'range': f"J{sheet_row}", 'values': [[image_urls[4] if len(image_urls) > 4 else ""]]})
-            logging.info(f"  Row {index + 2}: Updates prepared for existing product.")
+            updates.append({'range': f"AE{sheet_row}", 'values': [[details_text]]}) # Update raw details for existing rows too
+            logging.info(f"  Row {index + 2}: Updates prepared for existing product.")
 
         else:
-            logging.info(f"  Row {index + 2}: Product ID '{product_id}' not found in Google Sheet. Preparing to append as new row.")
+            logging.info(f"  Row {index + 2}: Product ID '{product_id}' not found in Google Sheet. Preparing to append as new row.")
             # 6. Append new_row_data to new_rows list
-            logging.info(f"  Row {index + 2}: Appending new_row_data to new_rows list...")
+            logging.info(f"  Row {index + 2}: Appending new_row_data to new_rows list...")
             new_rows.append(new_row_data)
-            logging.info(f"  Row {index + 2}: new_row_data appended to new_rows list.")
+            logging.info(f"  Row {index + 2}: new_row_data appended to new_rows list.")
         logging.info(f"Processing for row {index + 2} complete.\n")
 
 
@@ -397,7 +409,8 @@ def main():
         update_column_aa_sheet(worksheet, label_fee_column_index, next_row_start, len(new_rows), new_rows)
         update_column_ab_sheet(worksheet, processing_fee_column_index, next_row_start, len(new_rows), new_rows)
         update_column_ac_sheet(worksheet, profit_loss_column_index, shipping_col_index, selling_price_column_index, price_col_index, label_fee_column_index, processing_fee_column_index, next_row_start, len(new_rows))
-        update_column_ad_sheet(worksheet, detail_columns_start_index, next_row_start, len(new_rows), new_rows)
+        update_column_ad_sheet(worksheet, detail_columns_start_index, next_row_start, len(new_rows), new_rows) # Updates Column AD with processed data from Python
+        update_column_ae_sheet(worksheet, details_raw_column_index, next_row_start, len(new_rows), new_rows) # Updates Column AE with raw data
         logging.info("Column updates for new rows completed.")
     else:
         logging.info("No new rows to append, skipping column updates.")
