@@ -3,41 +3,46 @@ import gspread
 from google.oauth2.service_account import Credentials
 import tkinter as tk
 from tkinter import filedialog
+import json
+import logging
+
+# --- Part 0: Configure logging ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Import column update functions from separate files
 from update_headers import update_headers_sheet
-from update_column_a import update_column_a_sheet  # SKU
-from update_column_b import update_column_b_sheet  # Product ID
-from update_column_c import update_column_c_sheet  # Heading
-from update_column_d import update_column_d_sheet  # Brand
-from update_column_e import update_column_e_sheet  # Price
-from update_columns_f_to_j import update_columns_f_to_j_sheet # Image 1-5 (Columns F-J)
-from update_column_k import update_column_k_sheet  # Summary
-from update_column_l import update_column_l_sheet  # Key Feature 1
-from update_column_m import update_column_m_sheet  # Key Feature 2
-from update_column_n import update_column_n_sheet  # Remaining Key Features
-from update_column_o import update_column_o_sheet  # Category 1
-from update_column_p import update_column_p_sheet  # Category 2
-from update_column_q import update_column_q_sheet  # Category 3
-from update_column_r import update_column_r_sheet  # Category 4
-from update_column_s import update_column_s_sheet  # Category 1 URL
-from update_column_t import update_column_t_sheet  # Category 2 URL
-from update_column_u import update_column_u_sheet  # Category 3 URL
-from update_column_v import update_column_v_sheet  # Category 4 URL
-from update_column_w import update_column_w_sheet  # Product Category
-from update_column_x import update_column_x_sheet  # Referral Fee Percentage
-from update_column_y import update_column_y_sheet  # Shipping
-from update_column_z import update_column_z_sheet  # Selling Price
-from update_column_aa import update_column_aa_sheet # Label Fee
-from update_column_ab import update_column_ab_sheet # Processing Fee
-from update_column_ac import update_column_ac_sheet # Profit/Loss
-from update_column_ad import update_column_ad_sheet # Details
+from update_column_a import update_column_a_sheet
+from update_column_b import update_column_b_sheet
+from update_column_c import update_column_c_sheet
+from update_column_d import update_column_d_sheet
+from update_column_e import update_column_e_sheet
+from update_columns_f_to_j import update_columns_f_to_j_sheet
+from update_column_k import update_column_k_sheet
+from update_column_l import update_column_l_sheet
+from update_column_m import update_column_m_sheet
+from update_column_n import update_column_n_sheet
+from update_column_o import update_column_o_sheet
+from update_column_p import update_column_p_sheet
+from update_column_q import update_column_q_sheet
+from update_column_r import update_column_r_sheet
+from update_column_s import update_column_s_sheet
+from update_column_t import update_column_t_sheet
+from update_column_u import update_column_u_sheet
+from update_column_v import update_column_v_sheet
+from update_column_w import update_column_w_sheet
+from update_column_x import update_column_x_sheet
+from update_column_y import update_column_y_sheet
+from update_column_z import update_column_z_sheet
+from update_column_aa import update_column_aa_sheet
+from update_column_ab import update_column_ab_sheet
+from update_column_ac import update_column_ac_sheet
+from update_column_ad import update_column_ad_sheet
 
 # Import extraction logic from separate files
 from extract_images_logic import extract_images
 from extract_summary_logic import extract_summary
 from extract_key_features_logic import extract_key_features
-from extract_categories_logic import extract_categories
+from extract_categories_logic import extract_categories # Ensure this import is present
 from get_product_category_logic import get_product_category
 from calculate_referral_fee_logic import calculate_referral_fee
 from extract_details_keyword_grouped_logic import extract_details_keyword_grouped
@@ -76,29 +81,62 @@ PRODUCT_CATEGORIES = [
 ]
 
 
+# --- Part 2: Corrected extract_categories function ---
+def extract_categories(breadcrumbs_json):
+    category_names = [""] * 4
+    category_urls = [""] * 4
+    try:
+        breadcrumbs_dict = json.loads(breadcrumbs_json) # Parse JSON into a dictionary
+        item_list_element = breadcrumbs_dict.get("itemListElement") # Get the itemListElement
+
+        if isinstance(item_list_element, list): # Now check if itemListElement is a list
+            for idx, breadcrumb in enumerate(item_list_element[:4]): # Iterate over itemListElement
+                if isinstance(breadcrumb, dict):
+                    item = breadcrumb.get("item", {}) # Get the 'item' dictionary
+                    category_names[idx] = item.get("name", "") # Extract name from 'item'
+                    category_urls[idx] = item.get("@id", "") # Extract URL (@id) from 'item'
+    except json.JSONDecodeError:
+        logging.warning(f"Could not parse breadcrumbs JSON: {breadcrumbs_json}")
+    return category_names, category_urls
+
+
 # --- Part 4: Google Sheets Interaction ---
 def authenticate_gspread(creds_path=CREDENTIALS_FILE):
+    logging.info("Authenticating with Google Sheets...")
     creds = Credentials.from_service_account_file(creds_path, scopes=SCOPES)
-    return gspread.authorize(creds)
+    client = gspread.authorize(creds)
+    logging.info("Google Sheets authentication successful.")
+    return client
 
 def get_worksheet(client, sheet_id=SPREADSHEET_ID, sheet_index=0):
+    logging.info(f"Opening worksheet with ID: {sheet_id}...")
     sheet = client.open_by_key(sheet_id)
-    return sheet.get_worksheet(sheet_index)
+    worksheet = sheet.get_worksheet(sheet_index)
+    logging.info(f"Worksheet '{worksheet.title}' opened successfully.")
+    return worksheet
 
 def get_existing_product_ids(worksheet):
+    logging.info("Fetching existing product IDs from sheet...")
     existing_data = worksheet.get_all_values()
-    return {row[1].strip(): idx + 1 for idx, row in enumerate(existing_data) if len(row) > 1}
+    product_ids = {row[1].strip(): idx + 1 for idx, row in enumerate(existing_data) if len(row) > 1}
+    logging.info(f"Found {len(product_ids)} existing product IDs.")
+    return product_ids
 
 def batch_update_sheet(worksheet, updates):
     if updates:
+        logging.info(f"Batch updating sheet with {len(updates)} updates...")
         worksheet.batch_update(updates)
+        logging.info("Batch update completed.")
 
-def append_new_rows_sheet(worksheet, new_rows): # Simplified append_new_rows_sheet
+def append_new_rows_sheet(worksheet, new_rows):
     if new_rows:
+        logging.info(f"Appending {len(new_rows)} new rows to sheet...")
         next_row = len(worksheet.get_all_values()) + 1
         rows_to_insert = [row[:-1] for row in new_rows]
         worksheet.insert_rows(rows_to_insert, row=next_row)
-        return next_row # Return next_row for column updates to use
+        logging.info(f"Appended new rows starting from row {next_row}.")
+        return next_row
+    return None
 
 
 # --- Part 5: Column Indexing ---
@@ -111,7 +149,10 @@ def get_column_indices():
     processing_fee_column_index = "AB"
     profit_loss_column_index = "AC"
     sku_column_index = "A"
-    detail_columns_start_index = "AD"
+    product_id_col_index = "B"
+    heading_col_index = "C"
+    brand_col_index = "D"
+    price_col_index = "E"
     image_1_column_index = "F"
     image_2_column_index = "G"
     image_3_column_index = "H"
@@ -132,10 +173,11 @@ def get_column_indices():
     product_category_col_index = "W"
     referral_fee_percentage_col_index = "X"
     shipping_col_index = "Y"
-    price_col_index = "E"
-    brand_col_index = "D"
-    heading_col_index = "C"
-    product_id_col_index = "B"
+    selling_price_column_index = "Z"
+    label_fee_column_index = "AA"
+    processing_fee_column_index = "AB"
+    profit_loss_column_index = "AC"
+    detail_columns_start_index = "AD"
 
 
     return (sku_column_index, product_id_col_index, heading_col_index, brand_col_index, price_col_index, image_1_column_index, image_2_column_index, image_3_column_index, image_4_column_index, image_5_column_index, summary_column_index, key_feature_1_column_index, key_feature_2_column_index, remaining_key_features_column_index, category_1_column_index, category_2_column_index, category_3_column_index, category_4_column_index, category_1_url_column_index, category_2_url_index, category_3_url_index, category_4_url_index, product_category_col_index, referral_fee_percentage_col_index, shipping_col_index, selling_price_column_index, label_fee_column_index, processing_fee_column_index, profit_loss_column_index, detail_columns_start_index)
@@ -143,6 +185,7 @@ def get_column_indices():
 
 # --- Part 6: Main Function ---
 def main():
+    logging.info("Script started.")
     client = authenticate_gspread()
     worksheet = get_worksheet(client)
 
@@ -151,24 +194,30 @@ def main():
     file_path = filedialog.askopenfilename(title="Select Excel File", filetypes=[["Excel Files", "*.xlsx"]])
 
     if not file_path:
+        logging.warning("No file selected. Script will exit.")
         print("No file selected.")
         return
 
+    logging.info(f"Selected file: {file_path}")
     try:
-        df = load_excel(file_path) # Use imported load_excel function
+        df = load_excel(file_path)
+        logging.info(f"Excel file '{file_path}' loaded successfully.")
     except FileNotFoundError:
+        logging.error(f"Error: Excel file not found at '{file_path}'.")
         print(f"Error: Excel file not found at '{file_path}'.")
         return
     except Exception as e:
+        logging.error(f"Error loading Excel file: {e}", exc_info=True)
         print(f"Error loading Excel file: {e}")
         return
 
-    required_columns = ['web-scraper-order', 'web-scraper-start-url', 'heading', 'brand', 'market_price', 'images', 'images-src', 'summary', 'keyfeatures', 'specifications', 'shipping_status', 'pickup_status', 'delivery_status', 'categoryinfo', 'schema_org_product', 'schema_org_breadcrumbs', 'categoryid', 'details']
+    required_columns = ['web-scraper-order', 'web-scraper-start-url', 'heading', 'brand', 'market_price', 'images', 'images-src', 'summary', 'keyfeatures', 'specifications', 'shipping_status', 'pickup_status', 'delivery_status', 'categoryinfo', 'schema_org_product', 'schema_org_breadcrumbs', 'details']
     if not all(col in df.columns for col in required_columns):
+        logging.error(f"Required columns not found in Excel file. Found columns: {df.columns.tolist()}")
         print("Required columns not found in the Excel file. Found columns:", df.columns.tolist())
         return
 
-    df["product_id"] = df["web-scraper-start-url"].apply(extract_product_id) # Use imported extract_product_id
+    df["product_id"] = df["web-scraper-start-url"].apply(extract_product_id)
     existing_product_ids = get_existing_product_ids(worksheet)
 
     updates = []
@@ -233,24 +282,31 @@ def main():
     if 'Details' not in header_row:
         headers_to_update['AD1'] = [['Details']]
 
-    update_headers_sheet(worksheet, headers_to_update, batch_update_sheet) # Call header update function
+    update_headers_sheet(worksheet, headers_to_update, batch_update_sheet)
 
+    for index, row in df.iterrows():
+        logging.info(f"Processing row {index + 2} (Product ID: {row.get('web-scraper-start-url', 'N/A')})...")
 
-    for _, row in df.iterrows():
-        product_id = extract_product_id(row['web-scraper-start-url']) # Use imported extract_product_id
-        numeric_price = extract_numeric_price(row['market_price']) # Use imported extract_numeric_price
-        selling_price = DEFAULT_SELLING_PRICE
-        referral_fee_percentage_default = DEFAULT_REFERRAL_FEE
-        image_urls = extract_images(row['images']) # Use imported extract_images
-        summary_text = extract_summary(row['heading'], row['summary']) # Use imported extract_summary
-        key_feature_1, key_feature_2, remaining_key_features = extract_key_features(row['keyfeatures'], summary_text) # Use imported extract_key_features
-        category_names, category_urls = extract_categories(row['schema_org_product']) # Use imported extract_categories
-        product_category = get_product_category(category_names, category_urls, row['heading'], summary_text) # Use imported get_product_category
-        referral_fee_percentage = calculate_referral_fee(product_category, selling_price) # Use imported calculate_referral_fee
+        # 1. Extract data using imported functions
+        logging.info(f"  Row {index + 2}: Extracting product data...")
+        product_id = extract_product_id(row['web-scraper-start-url'])
+        numeric_price = extract_numeric_price(row['market_price'])
+        image_urls = extract_images(row['images'])
+        summary_text = extract_summary(row['heading'], row['summary'])
+        key_feature_1, key_feature_2, remaining_key_features = extract_key_features(row['keyfeatures'], summary_text)
+        category_names, category_urls = extract_categories(row['schema_org_breadcrumbs']) # Using corrected function
+        product_category = get_product_category(category_names, category_urls, row['heading'], summary_text)
+        referral_fee_percentage = calculate_referral_fee(product_category, DEFAULT_SELLING_PRICE)
         sku = f"{product_id}-{numeric_price if numeric_price is not None else 0}-PK-WMPL"
         details_text = row['details']
+        logging.info(f"  Row {index + 2}: Data extraction complete.")
 
-        new_row_data = [ # Data for initial row insertion
+        # 2. Log category data
+        logging.info(f"  Row {index + 2}: Extracted Categories - Names: {category_names}, URLs: {category_urls}")
+
+        # 3. Construct new_row_data
+        logging.info(f"  Row {index + 2}: Constructing new_row_data list...")
+        new_row_data = [
             sku,
             product_id,
             row['heading'],
@@ -276,62 +332,86 @@ def main():
             product_category,
             referral_fee_percentage,
             "", # Shipping
-            selling_price, # Selling Price
+            DEFAULT_SELLING_PRICE, # Selling Price
             DEFAULT_LABEL_FEE, # Label Fee
             DEFAULT_PROCESSING_FEE, # Processing Fee
             "=SUM(Y{0}+Z{0})-SUM(E{0}+AA{0}+AB{0})", # Profit/Loss formula
             details_text # Details
         ]
+        logging.info(f"  Row {index + 2}: new_row_data list constructed.")
 
+        # 4. Check if product_id exists
+        logging.info(f"  Row {index + 2}: Checking if product ID '{product_id}' exists in Google Sheet...")
         if product_id and product_id in existing_product_ids:
-            # For existing products, create updates for price and images (still in main)
+            logging.info(f"  Row {index + 2}: Product ID '{product_id}' found in Google Sheet.")
             sheet_row = existing_product_ids[product_id]
-            updates.append({'range': f"E{sheet_row}", 'values': [[numeric_price]]}) # Price Update
-            updates.append({'range': f"F{sheet_row}", 'values': [[image_urls[0] if len(image_urls) > 0 else ""]]}) # Image 1 Update
-            updates.append({'range': f"G{sheet_row}", 'values': [[image_urls[1] if len(image_urls) > 1 else ""]]}) # Image 2 Update
-            updates.append({'range': f"H{sheet_row}", 'values': [[image_urls[2] if len(image_urls) > 2 else ""]]}) # Image 3 Update
-            updates.append({'range': f"I{sheet_row}", 'values': [[image_urls[3] if len(image_urls) > 3 else ""]]}) # Image 4 Update
-            updates.append({'range': f"J{sheet_row}", 'values': [[image_urls[4] if len(image_urls) > 4 else ""]]}) # Image 5 Update
+
+            # 5. Prepare updates for existing product
+            logging.info(f"  Row {index + 2}: Preparing updates for existing product in row {sheet_row}...")
+            updates.append({'range': f"E{sheet_row}", 'values': [[numeric_price]]})
+            updates.append({'range': f"F{sheet_row}", 'values': [[image_urls[0] if len(image_urls) > 0 else ""]]})
+            updates.append({'range': f"G{sheet_row}", 'values': [[image_urls[1] if len(image_urls) > 1 else ""]]})
+            updates.append({'range': f"H{sheet_row}", 'values': [[image_urls[2] if len(image_urls) > 2 else ""]]})
+            updates.append({'range': f"I{sheet_row}", 'values': [[image_urls[3] if len(image_urls) > 3 else ""]]})
+            updates.append({'range': f"J{sheet_row}", 'values': [[image_urls[4] if len(image_urls) > 4 else ""]]})
+            logging.info(f"  Row {index + 2}: Updates prepared for existing product.")
+
         else:
+            logging.info(f"  Row {index + 2}: Product ID '{product_id}' not found in Google Sheet. Preparing to append as new row.")
+            # 6. Append new_row_data to new_rows list
+            logging.info(f"  Row {index + 2}: Appending new_row_data to new_rows list...")
             new_rows.append(new_row_data)
+            logging.info(f"  Row {index + 2}: new_row_data appended to new_rows list.")
+        logging.info(f"Processing for row {index + 2} complete.\n")
 
 
-    next_row_start = append_new_rows_sheet(worksheet, new_rows) # Insert new rows and get start row
+    # Sheet Update Operations:
+    # 7. Append new_rows to sheet
+    logging.info("Appending new rows to Google Sheet...")
+    next_row_start = append_new_rows_sheet(worksheet, new_rows)
+    if next_row_start:
+        logging.info(f"New rows appended to sheet. Starting row: {next_row_start}. Now updating columns for new rows...")
+        # 8. Call column update functions
+        update_column_a_sheet(worksheet, sku_column_index, next_row_start, len(new_rows), new_rows)
+        update_column_b_sheet(worksheet, product_id_col_index, next_row_start, len(new_rows), new_rows)
+        update_column_c_sheet(worksheet, heading_col_index, next_row_start, len(new_rows), new_rows)
+        update_column_d_sheet(worksheet, brand_col_index, next_row_start, len(new_rows), new_rows)
+        update_column_e_sheet(worksheet, price_col_index, selling_price_column_index, referral_fee_percentage_col_index, label_fee_column_index, processing_fee_column_index, shipping_col_index, profit_loss_column_index, detail_columns_start_index, next_row_start, len(new_rows))
+        update_columns_f_to_j_sheet(worksheet, image_1_column_index, image_2_column_index, image_3_column_index, image_4_column_index, image_5_column_index, next_row_start, len(new_rows), new_rows)
+        update_column_k_sheet(worksheet, summary_column_index, next_row_start, len(new_rows), new_rows)
+        update_column_l_sheet(worksheet, key_feature_1_column_index, next_row_start, len(new_rows), new_rows)
+        update_column_m_sheet(worksheet, key_feature_2_column_index, next_row_start, len(new_rows), new_rows)
+        update_column_n_sheet(worksheet, remaining_key_features_column_index, next_row_start, len(new_rows), new_rows)
+        update_column_o_sheet(worksheet, category_1_column_index, next_row_start, len(new_rows), new_rows)
+        update_column_p_sheet(worksheet, category_2_column_index, next_row_start, len(new_rows), new_rows)
+        update_column_q_sheet(worksheet, category_3_column_index, next_row_start, len(new_rows), new_rows)
+        update_column_r_sheet(worksheet, category_4_column_index, next_row_start, len(new_rows), new_rows)
+        update_column_s_sheet(worksheet, category_1_url_column_index, next_row_start, len(new_rows), new_rows)
+        update_column_t_sheet(worksheet, category_2_url_index, next_row_start, len(new_rows), new_rows)
+        update_column_u_sheet(worksheet, category_3_url_index, next_row_start, len(new_rows), new_rows)
+        update_column_v_sheet(worksheet, category_4_url_index, next_row_start, len(new_rows), new_rows)
+        update_column_w_sheet(worksheet, product_category_col_index, next_row_start, len(new_rows), new_rows)
+        update_column_x_sheet(worksheet, referral_fee_percentage_col_index, next_row_start, len(new_rows), new_rows)
+        update_column_y_sheet(worksheet, shipping_col_index, next_row_start, len(new_rows), new_rows)
+        update_column_z_sheet(worksheet, selling_price_column_index, next_row_start, len(new_rows), new_rows)
+        update_column_aa_sheet(worksheet, label_fee_column_index, next_row_start, len(new_rows), new_rows)
+        update_column_ab_sheet(worksheet, processing_fee_column_index, next_row_start, len(new_rows), new_rows)
+        update_column_ac_sheet(worksheet, profit_loss_column_index, shipping_col_index, selling_price_column_index, price_col_index, label_fee_column_index, processing_fee_column_index, next_row_start, len(new_rows))
+        update_column_ad_sheet(worksheet, detail_columns_start_index, next_row_start, len(new_rows), new_rows)
+        logging.info("Column updates for new rows completed.")
+    else:
+        logging.info("No new rows to append, skipping column updates.")
 
-    if next_row_start: # Update columns for newly added rows
-        update_column_a_sheet(worksheet, sku_column_index, next_row_start, len(new_rows), new_rows) # SKU (Column A)
-        update_column_b_sheet(worksheet, product_id_col_index, next_row_start, len(new_rows), new_rows) # Product ID (Column B)
-        update_column_c_sheet(worksheet, heading_col_index, next_row_start, len(new_rows), new_rows) # Heading (Column C)
-        update_column_d_sheet(worksheet, brand_col_index, next_row_start, len(new_rows), new_rows) # Brand (Column D)
-        update_column_e_sheet(worksheet, price_col_index, selling_price_column_index, referral_fee_percentage_col_index, label_fee_column_index, processing_fee_column_index, shipping_col_index, profit_loss_column_index, detail_columns_start_index, next_row_start, len(new_rows)) # Price, Selling Price, Fees, Profit/Loss (Column E, Z, AA, AB, Y, AC) - Combined for formula dependencies
-        update_columns_f_to_j_sheet(worksheet, image_1_column_index, image_2_column_index, image_3_column_index, image_4_column_index, image_5_column_index, next_row_start, len(new_rows), new_rows) # Images 1-5 (Columns F-J)
-        update_column_k_sheet(worksheet, summary_column_index, next_row_start, len(new_rows), new_rows) # Summary (Column K)
-        update_column_l_sheet(worksheet, key_feature_1_column_index, next_row_start, len(new_rows), new_rows) # Key Feature 1 (Column L)
-        update_column_m_sheet(worksheet, key_feature_2_column_index, next_row_start, len(new_rows), new_rows) # Key Feature 2 (Column M)
-        update_column_n_sheet(worksheet, remaining_key_features_column_index, next_row_start, len(new_rows), new_rows) # Remaining Key Features (Column N)
-        update_column_o_sheet(worksheet, category_1_column_index, next_row_start, len(new_rows), new_rows) # Category 1 (Column O)
-        update_column_p_sheet(worksheet, category_2_column_index, next_row_start, len(new_rows), new_rows) # Category 2 (Column P)
-        update_column_q_sheet(worksheet, category_3_column_index, next_row_start, len(new_rows), new_rows) # Category 3 (Column Q)
-        update_column_r_sheet(worksheet, category_4_column_index, next_row_start, len(new_rows), new_rows) # Category 4 (Column R)
-        update_column_s_sheet(worksheet, category_1_url_column_index, next_row_start, len(new_rows), new_rows) # Category 1 URL (Column S)
-        update_column_t_sheet(worksheet, category_2_url_index, next_row_start, len(new_rows), new_rows) # Category 2 URL (Column T)
-        update_column_u_sheet(worksheet, category_3_url_index, next_row_start, len(new_rows), new_rows) # Category 3 URL (Column U)
-        update_column_v_sheet(worksheet, category_4_url_index, next_row_start, len(new_rows), new_rows) # Category 4 URL (Column V)
-        update_column_w_sheet(worksheet, product_category_col_index, next_row_start, len(new_rows), new_rows) # Product Category (Column W)
-        update_column_x_sheet(worksheet, referral_fee_percentage_col_index, next_row_start, len(new_rows), new_rows) # Referral Fee Percentage (Column X)
-        update_column_y_sheet(worksheet, shipping_col_index, next_row_start, len(new_rows), new_rows) # Shipping (Column Y)
-        update_column_z_sheet(worksheet, selling_price_column_index, next_row_start, len(new_rows), new_rows) # Selling Price (Column Z)
-        update_column_aa_sheet(worksheet, label_fee_column_index, next_row_start, len(new_rows), new_rows) # Label Fee (Column AA)
-        update_column_ab_sheet(worksheet, processing_fee_column_index, next_row_start, len(new_rows), new_rows) # Processing Fee (Column AB)
-        update_column_ac_sheet(worksheet, profit_loss_column_index, shipping_col_index, selling_price_column_index, price_col_index, label_fee_column_index, processing_fee_column_index, next_row_start, len(new_rows)) # Profit/Loss (Column AC)
-        update_column_ad_sheet(worksheet, detail_columns_start_index, next_row_start, len(new_rows), new_rows) # Details (Column AD)
 
-
+    # 9. Batch update for existing products
     if updates:
-        batch_update_sheet(worksheet, updates) # Update existing product prices and images
+        logging.info("Applying batch updates for existing products...")
+        batch_update_sheet(worksheet, updates)
+        logging.info("Batch updates for existing products applied.")
 
+    logging.info("Google Sheet updated successfully (Modular Columns & Extraction Code).")
     print("Google Sheet updated successfully (Modular Columns & Extraction Code).")
-
+    logging.info("Script finished.")
 
 if __name__ == '__main__':
     main()
