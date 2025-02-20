@@ -6,7 +6,7 @@ DEFAULT_PROCESSING_FEE = 0.5 # Define DEFAULT_PROCESSING_FEE here as it's used i
 def update_column_e_sheet(worksheet, price_col_index, selling_price_column_index, referral_fee_percentage_col_index, label_fee_column_index, processing_fee_column_index, shipping_col_index, profit_loss_column_index, detail_columns_start_index, start_row, num_rows):
     price_range = f"{price_col_index}{str(start_row)}:{price_col_index}{str(start_row + num_rows - 1)}" # Column E - Price
     price_formatting = {
-        "numberFormat": {"type": "NUMBER", "pattern": "#,##0.00"},
+        "numberFormat": {"type": "NUMBER", "pattern": "#,##0.00"}
     }
     worksheet.format(price_range, price_formatting)
     # Price values are already inserted in main_modular.py during row insertion
@@ -14,7 +14,7 @@ def update_column_e_sheet(worksheet, price_col_index, selling_price_column_index
     selling_price_range = f"{selling_price_column_index}{str(start_row)}:{selling_price_column_index}{str(start_row + num_rows - 1)}" # Column Z - Selling Price
     selling_price_formatting = {
         "numberFormat": {"type": "NUMBER", "pattern": "#,##0.00"},
-        "backgroundColor": {"red": 1.0, "green": 0.9, "blue": 0.7"}
+        "backgroundColor": {"red": 1.0, "green": 0.9, "blue": 0.7}
     }
     worksheet.format(selling_price_range, selling_price_formatting)
     # Selling Price values are already inserted in main_modular.py during row insertion
@@ -22,7 +22,7 @@ def update_column_e_sheet(worksheet, price_col_index, selling_price_column_index
     referral_fee_range = f"{referral_fee_percentage_col_index}{str(start_row)}:{referral_fee_percentage_col_index}{str(start_row + num_rows - 1)}" # Column X - Referral Fee
     referral_fee_formatting = {
         "numberFormat": {"type": "NUMBER", "pattern": "#,##0.00"},
-        "backgroundColor": {"red": 1.0, "green": 0.9, "blue": 0.7"}
+        "backgroundColor": {"red": 1.0, "green": 0.9, "blue": 0.7}
     }
     worksheet.format(referral_fee_range, referral_fee_formatting)
     # Referral Fee Percentage values are already inserted in main_modular.py during row insertion
